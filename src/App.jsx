@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 
-// --- Ícones SVG ---
 const CpuIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="16" height="16" x="4" y="4" rx="2" /><rect width="6" height="6" x="9" y="9" rx="1" /><path d="M15 2v2" /><path d="M15 20v2" /><path d="M2 15h2" /><path d="M2 9h2" /><path d="M20 15h2" /><path d="M20 9h2" /><path d="M9 2v2" /><path d="M9 20v2" /></svg>;
 const GpuIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="12" x="3" y="6" rx="2" /><path d="M7 18v3" /><path d="M11 18v3" /><path d="M15 18v3" /><path d="M5 6V3" /><path d="M9 6V3" /><path d="M13 6V3" /><path d="M17 6V3" /></svg>;
 const AppleIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z" /><path d="M10 2c1 .5 2 2 2 3-1 0-2-1.5-2-3Z" /></svg>;
@@ -22,7 +21,6 @@ const Spinner = () => (
   </svg>
 );
 
-// --- Utilitário de Moeda ---
 const formatCurrency = (value) => {
   if (value === 0 || value === null || value === undefined) return 'Não informado';
   return new Intl.NumberFormat('pt-BR', {
@@ -32,7 +30,6 @@ const formatCurrency = (value) => {
   }).format(value);
 };
 
-// --- Componente: Select com Pesquisa Customizado ---
 const SearchableSelect = ({ options, value, onChange, placeholder, isDark }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -107,7 +104,6 @@ const SearchableSelect = ({ options, value, onChange, placeholder, isDark }) => 
   );
 };
 
-// --- Componente Gráfico de Barras ---
 const BarChart = ({ data, dataKey, nameKey, label, color, formatValue, hideEmptyMsg = false, isDark }) => {
   if (!data || data.length === 0) {
     if (hideEmptyMsg) return null;
@@ -157,7 +153,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isDark, setIsDark] = useState(true);
 
-  // Estados do formulário Principal
   const [selectedType, setSelectedType] = useState('GPU');
   const [selectedProvider, setSelectedProvider] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
@@ -165,20 +160,16 @@ export default function App() {
   const [cost, setCost] = useState('');
   const [quantity, setQuantity] = useState(1);
 
-  // Estados de Edição
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
 
-  // Estados do formulário de Customizados
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customName, setCustomName] = useState('');
   const [customTflops, setCustomTflops] = useState('');
   const [customVram, setCustomVram] = useState('');
 
-  // Estado da Tabela/Comparador
   const [selectedItems, setSelectedItems] = useState([]);
 
-  // Carrega os dados (Rede + LocalStorage)
   useEffect(() => {
     const fetchHardwareData = async () => {
       setLoading(true);
@@ -239,7 +230,6 @@ export default function App() {
         }
       }
 
-      // Carrega customizados salvos pelo usuário
       let customHardware = [];
       const savedCustom = localStorage.getItem('custom_hardware_list');
       if (savedCustom) {
@@ -257,7 +247,6 @@ export default function App() {
     fetchHardwareData();
   }, []);
 
-  // --- Lógica de Filtros do Formulário Principal ---
   const availableProviders = useMemo(() => {
     const providers = new Set(hardwareList.filter(h => h.type === selectedType).map(h => h.provider));
     return Array.from(providers);
@@ -295,7 +284,6 @@ export default function App() {
     setSelectedModel('');
   }, [selectedProvider, selectedType]);
 
-  // --- Ações ---
   const handleAddItem = (e) => {
     e.preventDefault();
     if (!selectedModel || !quantity) return;
@@ -366,7 +354,6 @@ export default function App() {
     ));
   };
 
-  // Funções de Edição Inline
   const startEdit = (item) => {
     setEditingId(item.id);
     setEditForm({
@@ -395,7 +382,6 @@ export default function App() {
     setEditingId(null);
   };
 
-  // --- Dados de Gráficos e Cálculos ---
   const chartData = useMemo(() => {
     return selectedItems.map(item => {
       const totalTflops = item.tflops * item.quantity;
@@ -441,7 +427,6 @@ export default function App() {
     <div className={`min-h-screen font-sans transition-colors duration-300 ${isDark ? 'bg-[#0b1120] text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
       <div className="p-4 mx-auto space-y-6 max-w-7xl md:p-8">
 
-        {/* Cabeçalho */}
         <header className={`pb-4 border-b flex justify-between items-center ${isDark ? 'border-slate-800/50' : 'border-slate-200'}`}>
           <div>
             <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Dashboard de Hardware AI</h1>
@@ -456,7 +441,6 @@ export default function App() {
           </button>
         </header>
 
-        {/* Indicador de Processamento Total */}
         <div className={`border p-6 rounded-xl shadow-xl flex flex-col items-center ${isDark ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
           <div className="mb-6 text-center">
             <h3 className={`text-sm font-medium uppercase tracking-wider mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Poder de Computação Total</h3>
@@ -465,7 +449,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Barra GPU Poor -> GPU Rich */}
           <div className="w-full max-w-3xl">
             <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider mb-2">
               <span className="text-red-500">GPU poor</span>
@@ -490,16 +473,13 @@ export default function App() {
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
 
-          {/* Coluna da Esquerda: Formulário e Tabela */}
           <div className="space-y-6 lg:col-span-5">
 
-            {/* Formulário Principal */}
             <div className={`border p-5 rounded-xl shadow-lg ${isDark ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
               <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-slate-900'}`}>Adicionar Hardware</h2>
 
               <form onSubmit={handleAddItem} className="space-y-4">
 
-                {/* 1. Seleção de Tipo */}
                 <div className={`flex gap-2 p-1.5 rounded-full border ${isDark ? 'bg-[#0b1120] border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
                   {[
                     { id: 'GPU', icon: <GpuIcon />, label: 'GPU' },
@@ -520,7 +500,6 @@ export default function App() {
                   ))}
                 </div>
 
-                {/* 2. Provedor / Fabricante */}
                 <div>
                   <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Fabricante</label>
                   <div className="relative">
@@ -539,7 +518,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 3. Modelo */}
                 <div className="relative">
                   <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Modelo</label>
                   <SearchableSelect
@@ -550,7 +528,6 @@ export default function App() {
                     isDark={isDark}
                   />
 
-                  {/* Botão de Customizado */}
                   <div className="mt-2 text-right">
                     <button
                       type="button"
@@ -562,7 +539,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Formulário de Cadastro Customizado (Colapsável) */}
                 {showCustomForm && (
                   <div className={`p-4 rounded-lg border space-y-3 mb-4 ${isDark ? 'bg-slate-800/50 border-indigo-500/30' : 'bg-indigo-50 border-indigo-200'}`}>
                     <h4 className={`text-xs font-bold mb-2 flex items-center gap-1 ${isDark ? 'text-indigo-300' : 'text-indigo-700'}`}><PlusIcon /> Novo Hardware Local</h4>
@@ -598,7 +574,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* 4. VRAM e Quantidade */}
                 <div className="grid grid-cols-12 gap-3">
                   <div className="col-span-5">
                     <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>VRAM</label>
@@ -634,7 +609,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 5. Custo Opcional */}
                 <div>
                   <label className={`block text-xs font-medium mb-1.5 flex justify-between ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                     <span>Custo Unitário (R$)</span>
@@ -661,7 +635,6 @@ export default function App() {
               </form>
             </div>
 
-            {/* Lista de Selecionados com Toggle e Edição */}
             {selectedItems.length > 0 && (
               <div className={`rounded-xl shadow-lg border overflow-hidden ${isDark ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'}`}>
                 <div className="overflow-x-auto">
@@ -676,7 +649,6 @@ export default function App() {
                     <tbody className={`divide-y text-sm ${isDark ? 'divide-slate-800' : 'divide-slate-100'}`}>
                       {selectedItems.map(item => (
                         editingId === item.id ? (
-                          // Modo de Edição Inline
                           <tr key={item.id} className={isDark ? 'bg-slate-800' : 'bg-slate-50'}>
                             <td className="p-3">
                               <div className={`font-semibold text-xs mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{item.name}</div>
@@ -712,7 +684,6 @@ export default function App() {
                             </td>
                           </tr>
                         ) : (
-                          // Modo de Exibição Normal
                           <tr key={item.id} className={`transition-colors ${isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}>
                             <td className="p-3">
                               <div className={`font-semibold text-xs ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
@@ -759,7 +730,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Coluna da Direita: Gráficos */}
           <div className="space-y-4 lg:col-span-7">
             {selectedItems.length === 0 ? (
               <div className={`h-full min-h-[300px] flex flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center ${isDark ? 'bg-[#0f172a] border-slate-700 text-slate-500' : 'bg-white border-slate-300 text-slate-400'}`}>
@@ -769,7 +739,6 @@ export default function App() {
               </div>
             ) : (
               <>
-                {/* Gráfico 1: Processamento */}
                 <BarChart
                   data={chartData}
                   dataKey="totalTflops"
@@ -780,7 +749,6 @@ export default function App() {
                   isDark={isDark}
                 />
 
-                {/* Exibe gráficos de Custo Apenas se houver itens COM custo cadastrado */}
                 {financialChartData.length > 0 ? (
                   <>
                     <BarChart
