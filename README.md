@@ -98,7 +98,7 @@ Se você preferir não instalar o Node.js na sua máquina, pode rodar o projeto 
 1.  **Faça o clone do repositório:**
     
     ```
-    git clone [https://github.com/douglaswp/hardware-ai.git](https://github.com/douglaswp/hardware-ai.git)
+    git clone https://github.com/douglaswp/hardware-ai.git
     cd hardware-ai
     
     ```
