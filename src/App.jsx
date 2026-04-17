@@ -179,6 +179,7 @@ export default function App() {
   });
 
   const importInputRef = useRef(null);
+  const [sortConfig, setSortConfig] = useState({ key: 'added', direction: 'desc' });
 
   useEffect(() => {
     localStorage.setItem('theme_dark', JSON.stringify(isDark));
@@ -436,6 +437,46 @@ export default function App() {
     reader.readAsText(file);
     e.target.value = '';
   };
+
+  const SORT_OPTIONS = [
+    { key: 'added',      label: 'Adição',      defaultDir: 'desc' },
+    { key: 'name',       label: 'Nome',         defaultDir: 'asc'  },
+    { key: 'tflops',     label: 'TFLOPS',       defaultDir: 'desc' },
+    { key: 'custo',      label: 'Custo',        defaultDir: 'desc' },
+    { key: 'vram',       label: 'VRAM',         defaultDir: 'desc' },
+    { key: 'eficiencia', label: 'Eficiência',   defaultDir: 'desc' },
+  ];
+
+  const handleSort = (key) => {
+    setSortConfig(prev => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === 'desc' ? 'asc' : 'desc' };
+      }
+      const opt = SORT_OPTIONS.find(o => o.key === key);
+      return { key, direction: opt?.defaultDir ?? 'desc' };
+    });
+  };
+
+  const sortedItems = useMemo(() => {
+    if (sortConfig.key === 'added') return [...selectedItems];
+    const getValue = (item) => {
+      switch (sortConfig.key) {
+        case 'name':       return item.name.toLowerCase();
+        case 'tflops':     return item.tflops * item.quantity;
+        case 'custo':      return item.cost || 0;
+        case 'vram':       return item.selectedVram || 0;
+        case 'eficiencia': return item.cost > 0 ? item.tflops / item.cost : -1;
+        default:           return 0;
+      }
+    };
+    return [...selectedItems].sort((a, b) => {
+      const va = getValue(a);
+      const vb = getValue(b);
+      if (va < vb) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (va > vb) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [selectedItems, sortConfig]);
 
   const chartData = useMemo(() => {
     return selectedItems.map(item => {
@@ -714,6 +755,26 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+                <div className={`flex items-center gap-1 px-3 py-1.5 flex-wrap border-b ${isDark ? 'border-slate-800 bg-slate-900/30' : 'border-slate-100 bg-slate-50/70'}`}>
+                  <span className={`text-[10px] mr-1 shrink-0 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>Ordenar:</span>
+                  {SORT_OPTIONS.map(opt => {
+                    const active = sortConfig.key === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        onClick={() => handleSort(opt.key)}
+                        className={`flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-medium transition-colors border ${
+                          active
+                            ? (isDark ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300' : 'bg-indigo-50 border-indigo-300 text-indigo-600')
+                            : (isDark ? 'border-slate-700/50 text-slate-500 hover:text-slate-300 hover:border-slate-600' : 'border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300')
+                        }`}
+                      >
+                        {opt.label}
+                        {active && <span className="ml-0.5 text-[9px]">{sortConfig.direction === 'desc' ? '↓' : '↑'}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -724,7 +785,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className={`divide-y text-sm ${isDark ? 'divide-slate-800' : 'divide-slate-100'}`}>
-                      {selectedItems.map(item => (
+                      {sortedItems.map(item => (
                         editingId === item.id ? (
                           <tr key={item.id} className={isDark ? 'bg-slate-800' : 'bg-slate-50'}>
                             <td className="p-3">
@@ -823,7 +884,7 @@ export default function App() {
             ) : (
               <>
                 <BarChart
-                  data={chartData}
+                  data={[...chartData].sort((a, b) => b.totalTflops - a.totalTflops)}
                   dataKey="totalTflops"
                   nameKey="displayName"
                   label="Poder de Processamento Bruto (TFLOPS) - Quanto maior, melhor"
@@ -835,7 +896,7 @@ export default function App() {
                 {financialChartData.length > 0 ? (
                   <>
                     <BarChart
-                      data={financialChartData}
+                      data={[...financialChartData].sort((a, b) => b.tflopsPerDollar - a.tflopsPerDollar)}
                       dataKey="tflopsPerDollar"
                       nameKey="displayName"
                       label="Eficiência de Investimento (TFLOPS por R$) - Quanto maior, melhor"
@@ -845,7 +906,7 @@ export default function App() {
                     />
 
                     <BarChart
-                      data={financialChartData}
+                      data={[...financialChartData].sort((a, b) => a.costPerTflop - b.costPerTflop)}
                       dataKey="costPerTflop"
                       nameKey="displayName"
                       label="Custo por Unidade de TFLOP (R$) - Quanto menor, melhor"
