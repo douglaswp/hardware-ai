@@ -57,8 +57,8 @@ const SearchableSelect = ({ options, value, onChange, placeholder, isDark }) => 
     <div className="relative" ref={wrapperRef}>
       <div
         className={`flex items-center justify-between w-full p-2.5 rounded-lg cursor-pointer text-sm border ${isDark
-            ? 'bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-200'
-            : 'bg-slate-50 border-slate-300 hover:bg-slate-100 text-slate-900'
+          ? 'bg-slate-900 border-slate-700 hover:bg-slate-800 text-slate-200'
+          : 'bg-slate-50 border-slate-300 hover:bg-slate-100 text-slate-900'
           }`}
         onClick={() => { setIsOpen(!isOpen); setSearch(''); }}
       >
@@ -180,6 +180,7 @@ export default function App() {
 
   const importInputRef = useRef(null);
   const [sortConfig, setSortConfig] = useState({ key: 'added', direction: 'desc' });
+  const [isImportDragActive, setIsImportDragActive] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('theme_dark', JSON.stringify(isDark));
@@ -270,44 +271,36 @@ export default function App() {
     const providers = new Set(hardwareList.filter(h => h.type === selectedType).map(h => h.provider));
     return Array.from(providers);
   }, [hardwareList, selectedType]);
-
-  useEffect(() => {
-    if (availableProviders.length > 0 && !availableProviders.includes(selectedProvider)) {
-      setSelectedProvider(availableProviders[0]);
-    }
-  }, [selectedType, availableProviders, selectedProvider]);
+  const activeSelectedProvider = availableProviders.includes(selectedProvider)
+    ? selectedProvider
+    : (availableProviders[0] ?? '');
 
   const availableModels = useMemo(() => {
     return hardwareList
-      .filter(h => h.type === selectedType && h.provider === selectedProvider)
+      .filter(h => h.type === selectedType && h.provider === activeSelectedProvider)
       .map(h => {
         const memStr = h.memory && h.memory.length > 0 ? ` (${h.memory.join('/')} GB)` : '';
         return { value: h.name, label: `${h.name}${memStr}` };
       });
-  }, [hardwareList, selectedType, selectedProvider]);
+  }, [hardwareList, selectedType, activeSelectedProvider]);
 
-  useEffect(() => {
-    if (selectedModel) {
-      const hw = hardwareList.find(h => h.name === selectedModel);
-      if (hw && hw.memory && hw.memory.length > 0) {
-        setSelectedVram(hw.memory[0].toString());
-      } else {
-        setSelectedVram('');
-      }
-    } else {
-      setSelectedVram('');
-    }
-  }, [selectedModel, hardwareList]);
+  const activeSelectedModel = availableModels.some(model => model.value === selectedModel)
+    ? selectedModel
+    : '';
 
-  useEffect(() => {
-    setSelectedModel('');
-  }, [selectedProvider, selectedType]);
+  const activeModelObj = hardwareList.find(h => h.name === activeSelectedModel);
+  const hasVramOptions = activeModelObj && activeModelObj.memory && activeModelObj.memory.length > 0;
+  const activeSelectedVram = hasVramOptions
+    ? (selectedVram && activeModelObj.memory.some(memory => memory.toString() === selectedVram.toString())
+      ? selectedVram.toString()
+      : activeModelObj.memory[0].toString())
+    : '';
 
   const handleAddItem = (e) => {
     e.preventDefault();
-    if (!selectedModel || !quantity) return;
+    if (!activeSelectedModel || !quantity) return;
 
-    const hw = hardwareList.find(h => h.name === selectedModel);
+    const hw = hardwareList.find(h => h.name === activeSelectedModel);
     if (!hw) return;
 
     const parsedCost = cost ? parseFloat(cost) : 0;
@@ -319,7 +312,7 @@ export default function App() {
       provider: hw.provider,
       tflops: hw.tflops,
       memory: hw.memory,
-      selectedVram: selectedVram ? parseInt(selectedVram, 10) : null,
+      selectedVram: activeSelectedVram ? parseInt(activeSelectedVram, 10) : null,
       cost: parsedCost,
       quantity: parseInt(quantity, 10),
       includedInTotal: true,
@@ -345,7 +338,7 @@ export default function App() {
     const newCustom = {
       id: `custom_${crypto.randomUUID()}`,
       type: selectedType,
-      provider: selectedProvider || 'Custom',
+      provider: activeSelectedProvider || 'Custom',
       name: customName,
       tflops: parseFloat(customTflops),
       memory: parsedMemory
@@ -362,7 +355,9 @@ export default function App() {
     setCustomTflops('');
     setCustomVram('');
     setShowCustomForm(false);
+    setSelectedProvider(newCustom.provider);
     setSelectedModel(newCustom.name);
+    setSelectedVram(parsedMemory && parsedMemory.length > 0 ? parsedMemory[0].toString() : '');
   };
 
   const removeItem = (id) => setSelectedItems(selectedItems.filter(item => item.id !== id));
@@ -416,9 +411,20 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  const handleImport = (e) => {
-    const file = e.target.files[0];
+  const importProjectFromFile = (file) => {
     if (!file) return;
+
+    const isJsonFile = file.name?.toLowerCase().endsWith('.json') || file.type === 'application/json';
+    if (!isJsonFile) {
+      console.warn('Selecione um arquivo JSON válido para importar o projeto.');
+      return;
+    }
+
+    if (selectedItems.length > 0) {
+      const shouldReplace = window.confirm('Já existe um projeto carregado. Ele será apagado após a importação. Deseja continuar?');
+      if (!shouldReplace) return;
+    }
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
@@ -430,21 +436,49 @@ export default function App() {
         }
         setSelectedItems(items);
         setEditingId(null);
+        setEditForm({});
       } catch {
         console.warn('Erro ao importar arquivo JSON: formato inválido.');
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleImport = (e) => {
+    const file = e.target.files[0];
+    importProjectFromFile(file);
     e.target.value = '';
   };
 
+  const handleChartDragOver = (e) => {
+    if (!Array.from(e.dataTransfer?.items || []).some(item => item.kind === 'file')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    if (!isImportDragActive) {
+      setIsImportDragActive(true);
+    }
+  };
+
+  const handleChartDragLeave = (e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setIsImportDragActive(false);
+    }
+  };
+
+  const handleChartDrop = (e) => {
+    e.preventDefault();
+    setIsImportDragActive(false);
+    const [file] = Array.from(e.dataTransfer.files || []);
+    importProjectFromFile(file);
+  };
+
   const SORT_OPTIONS = [
-    { key: 'added',      label: 'Adição',      defaultDir: 'desc' },
-    { key: 'name',       label: 'Nome',         defaultDir: 'asc'  },
-    { key: 'tflops',     label: 'TFLOPS',       defaultDir: 'desc' },
-    { key: 'custo',      label: 'Custo',        defaultDir: 'desc' },
-    { key: 'vram',       label: 'VRAM',         defaultDir: 'desc' },
-    { key: 'eficiencia', label: 'Eficiência',   defaultDir: 'desc' },
+    { key: 'added', label: 'Adição', defaultDir: 'desc' },
+    { key: 'name', label: 'Nome', defaultDir: 'asc' },
+    { key: 'tflops', label: 'TFLOPS', defaultDir: 'desc' },
+    { key: 'custo', label: 'Custo', defaultDir: 'desc' },
+    { key: 'vram', label: 'VRAM', defaultDir: 'desc' },
+    { key: 'eficiencia', label: 'Eficiência', defaultDir: 'desc' },
   ];
 
   const handleSort = (key) => {
@@ -461,12 +495,12 @@ export default function App() {
     if (sortConfig.key === 'added') return [...selectedItems];
     const getValue = (item) => {
       switch (sortConfig.key) {
-        case 'name':       return item.name.toLowerCase();
-        case 'tflops':     return item.tflops * item.quantity;
-        case 'custo':      return item.cost || 0;
-        case 'vram':       return item.selectedVram || 0;
+        case 'name': return item.name.toLowerCase();
+        case 'tflops': return item.tflops * item.quantity;
+        case 'custo': return item.cost || 0;
+        case 'vram': return item.selectedVram || 0;
         case 'eficiencia': return item.cost > 0 ? item.tflops / item.cost : -1;
-        default:           return 0;
+        default: return 0;
       }
     };
     return [...selectedItems].sort((a, b) => {
@@ -509,8 +543,6 @@ export default function App() {
   const markerPosition = Math.min((totalCombinedTflops / MAX_TFLOPS_SCALE) * 100, 100);
 
   const financialChartData = chartData.filter(d => d.cost > 0);
-  const activeModelObj = hardwareList.find(h => h.name === selectedModel);
-  const hasVramOptions = activeModelObj && activeModelObj.memory && activeModelObj.memory.length > 0;
 
   if (loading) return (
     <div className={`flex flex-col items-center justify-center min-h-screen ${isDark ? 'bg-[#0f172a] text-white' : 'bg-slate-100 text-slate-800'}`}>
@@ -551,7 +583,7 @@ export default function App() {
               <span className="text-green-500">GPU rich</span>
             </div>
 
-            <div className="relative w-full h-2 rounded-full bg-gradient-to-r from-red-500 via-orange-400 to-green-500">
+            <div className="relative w-full h-2 rounded-full bg-linear-to-r from-red-500 via-orange-400 to-green-500">
               <div
                 className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full transition-all duration-700 ease-out border-[3px] ${isDark ? 'bg-white border-[#0f172a]' : 'bg-white border-slate-200'}`}
                 style={{ left: `calc(${markerPosition}% - 8px)` }}
@@ -568,6 +600,7 @@ export default function App() {
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <input ref={importInputRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImport} />
 
           <div className="space-y-6 lg:col-span-5">
 
@@ -585,10 +618,15 @@ export default function App() {
                     <button
                       key={type.id}
                       type="button"
-                      onClick={() => setSelectedType(type.id)}
+                      onClick={() => {
+                        setSelectedType(type.id);
+                        setSelectedProvider('');
+                        setSelectedModel('');
+                        setSelectedVram('');
+                      }}
                       className={`flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${selectedType === type.id
-                          ? (isDark ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 shadow-sm' : 'bg-white text-indigo-600 border border-slate-200 shadow-sm')
-                          : (isDark ? 'text-slate-500 hover:text-slate-300 border border-transparent' : 'text-slate-500 hover:text-slate-700 border border-transparent')
+                        ? (isDark ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 shadow-sm' : 'bg-white text-indigo-600 border border-slate-200 shadow-sm')
+                        : (isDark ? 'text-slate-500 hover:text-slate-300 border border-transparent' : 'text-slate-500 hover:text-slate-700 border border-transparent')
                         }`}
                     >
                       {type.icon} {type.label}
@@ -600,8 +638,12 @@ export default function App() {
                   <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Fabricante</label>
                   <div className="relative">
                     <select
-                      value={selectedProvider}
-                      onChange={(e) => setSelectedProvider(e.target.value)}
+                      value={activeSelectedProvider}
+                      onChange={(e) => {
+                        setSelectedProvider(e.target.value);
+                        setSelectedModel('');
+                        setSelectedVram('');
+                      }}
                       className={`w-full p-2.5 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 focus:outline-none appearance-none border ${isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
                     >
                       {availableProviders.map(p => (
@@ -618,8 +660,12 @@ export default function App() {
                   <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Modelo</label>
                   <SearchableSelect
                     options={availableModels}
-                    value={selectedModel}
-                    onChange={setSelectedModel}
+                    value={activeSelectedModel}
+                    onChange={(value) => {
+                      setSelectedModel(value);
+                      const hardware = hardwareList.find(h => h.name === value);
+                      setSelectedVram(hardware?.memory?.length ? hardware.memory[0].toString() : '');
+                    }}
                     placeholder="Selecione um modelo..."
                     isDark={isDark}
                   />
@@ -675,7 +721,7 @@ export default function App() {
                     <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>VRAM</label>
                     <div className="relative">
                       <select
-                        value={selectedVram}
+                        value={activeSelectedVram}
                         onChange={(e) => setSelectedVram(e.target.value)}
                         disabled={!hasVramOptions}
                         className={`w-full p-2.5 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 focus:outline-none appearance-none disabled:opacity-50 disabled:cursor-not-allowed border ${isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
@@ -706,7 +752,7 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className={`block text-xs font-medium mb-1.5 flex justify-between ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  <label className={`text-xs font-medium mb-1.5 flex justify-between ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                     <span>Custo Unitário (R$)</span>
                     <span className="italic opacity-70">Opcional</span>
                   </label>
@@ -723,7 +769,7 @@ export default function App() {
 
                 <button
                   type="submit"
-                  disabled={!selectedModel || showCustomForm}
+                  disabled={!activeSelectedModel || showCustomForm}
                   className={`w-full py-2.5 px-4 text-sm font-semibold rounded-lg transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed border ${isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-indigo-600 hover:bg-indigo-700 border-indigo-600 text-white'}`}
                 >
                   Adicionar Item
@@ -738,7 +784,6 @@ export default function App() {
                     {selectedItems.length} {selectedItems.length === 1 ? 'item' : 'itens'}
                   </span>
                   <div className="flex items-center gap-1.5">
-                    <input ref={importInputRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
                     <button
                       onClick={() => importInputRef.current?.click()}
                       className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-colors border ${isDark ? 'border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800' : 'border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}
@@ -763,11 +808,10 @@ export default function App() {
                       <button
                         key={opt.key}
                         onClick={() => handleSort(opt.key)}
-                        className={`flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-medium transition-colors border ${
-                          active
-                            ? (isDark ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300' : 'bg-indigo-50 border-indigo-300 text-indigo-600')
-                            : (isDark ? 'border-slate-700/50 text-slate-500 hover:text-slate-300 hover:border-slate-600' : 'border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300')
-                        }`}
+                        className={`flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-medium transition-colors border ${active
+                          ? (isDark ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300' : 'bg-indigo-50 border-indigo-300 text-indigo-600')
+                          : (isDark ? 'border-slate-700/50 text-slate-500 hover:text-slate-300 hover:border-slate-600' : 'border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300')
+                          }`}
                       >
                         {opt.label}
                         {active && <span className="ml-0.5 text-[9px]">{sortConfig.direction === 'desc' ? '↓' : '↑'}</span>}
@@ -839,7 +883,7 @@ export default function App() {
                                   checked={item.includedInTotal}
                                   onChange={() => toggleIncludeInTotal(item.id)}
                                 />
-                                <div className={`w-8 h-4 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-500 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`}></div>
+                                <div className={`w-8 h-4 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-500 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`}></div>
                               </label>
                             </td>
                             <td className="p-3 text-right whitespace-nowrap">
@@ -868,18 +912,44 @@ export default function App() {
             )}
           </div>
 
-          <div className="space-y-4 lg:col-span-7">
-            {selectedItems.length === 0 ? (
-              <div className={`h-full min-h-[300px] flex flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center ${isDark ? 'bg-[#0f172a] border-slate-700 text-slate-500' : 'bg-white border-slate-300 text-slate-400'}`}>
-                <ChartIcon />
-                <p className={`mt-4 font-medium text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Nenhum hardware na lista</p>
-                <p className="mt-1 text-xs">Selecione componentes ao lado para gerar comparações.</p>
+          <div
+            className="space-y-4 lg:col-span-7"
+            onDragOver={handleChartDragOver}
+            onDragLeave={handleChartDragLeave}
+            onDrop={handleChartDrop}
+          >
+            <div className={`rounded-xl border border-dashed p-4 transition-colors ${isImportDragActive
+              ? (isDark ? 'border-indigo-400 bg-indigo-500/10' : 'border-indigo-500 bg-indigo-50')
+              : (isDark ? 'border-slate-700 bg-[#0f172a]' : 'border-slate-300 bg-white')
+              }`}>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className={`text-sm font-medium ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                    Arraste e solte um arquivo <span className="font-mono">.json</span> aqui para importar um projeto salvo.
+                  </p>
+                  <p className={`mt-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                    Você também pode usar o botão ao lado para selecionar o arquivo manualmente.
+                  </p>
+                  {selectedItems.length > 0 && (
+                    <p className={`mt-2 text-xs font-medium ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                      Atenção: ao importar, o projeto atual será apagado.
+                    </p>
+                  )}
+                </div>
                 <button
                   onClick={() => importInputRef.current?.click()}
-                  className={`mt-4 flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${isDark ? 'border-slate-700 text-slate-500 hover:text-slate-300 hover:bg-slate-800' : 'border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+                  className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-colors border ${isDark ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-slate-200 text-slate-700 hover:bg-slate-100'}`}
                 >
                   <UploadIcon /> Importar projeto salvo
                 </button>
+              </div>
+            </div>
+
+            {selectedItems.length === 0 ? (
+              <div className={`h-full min-h-60 flex flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center ${isDark ? 'bg-[#0f172a] border-slate-700 text-slate-500' : 'bg-white border-slate-300 text-slate-400'}`}>
+                <ChartIcon />
+                <p className={`mt-4 font-medium text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Nenhum hardware na lista</p>
+                <p className="mt-1 text-xs">Selecione componentes ao lado ou importe um projeto salvo para gerar comparações.</p>
               </div>
             ) : (
               <>
